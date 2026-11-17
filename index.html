@@ -126,6 +126,9 @@ h1 { color: var(--onsky); font-family: var(--font-display); font-weight: 700; fo
 .chip[aria-current="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .remove { border: 0; background: transparent; color: var(--onsky); font-size: 0.8rem; text-decoration: underline; padding: 6px 4px; }
 
+.findrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.geo-note { margin: 0; color: var(--onsky); font-size: 0.85rem; }
+.chip svg { width: 12px; height: 12px; margin-right: 4px; vertical-align: -1px; }
 .search { position: relative; flex: 0 0 auto; width: 100%; min-width: 0; max-width: 340px; }
 .search input { width: 100%; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 12px; }
 .results { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); background: var(--panel-solid); border: 1px solid var(--line); border-radius: 8px; list-style: none; margin: 0; padding: 4px; max-height: 50vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.14); }
@@ -151,8 +154,10 @@ h1 { color: var(--onsky); font-family: var(--font-display); font-weight: 700; fo
 .facts dt { font-family: var(--font-data); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .facts dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 500; }
 
-.chartwrap { overflow-x: auto; }
-.chart { width: 100%; height: auto; display: block; }
+/* the chart panel is as tall as the "Agora" card beside it; the chart is drawn at exactly the height that is left */
+.chartpanel { display: flex; flex-direction: column; }
+.chartwrap { position: relative; flex: 1 1 auto; min-height: 296px; overflow-x: auto; overflow-y: hidden; }
+.chart { position: absolute; top: 0; left: 0; width: 100%; height: 296px; display: block; }
 .chart .temp-label { font-family: var(--font-display); font-size: 10.5px; font-weight: 700; fill: var(--ink); paint-order: stroke; stroke: var(--panel-solid); stroke-width: 3px; stroke-linejoin: round; }
 .chart .daytint { fill: var(--ink); opacity: 0.055; }
 .chart .divider { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
@@ -313,10 +318,14 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
   </header>
 
   <div class="places" id="places"></div>
-  <div class="search">
-    <input id="q" type="search" placeholder="Adicionar local, por exemplo Porto" autocomplete="off" aria-label="Pesquisar um local">
-    <ul class="results" id="results" hidden></ul>
+  <div class="findrow">
+    <div class="search">
+      <input id="q" type="search" placeholder="Adicionar local, por exemplo Porto" autocomplete="off" aria-label="Pesquisar um local">
+      <ul class="results" id="results" hidden></ul>
+    </div>
+    <button type="button" class="ghost" id="use-location" hidden>Usar a minha localização</button>
   </div>
+  <p class="geo-note" id="geo-note" role="status" hidden></p>
 
   <div class="error" id="error" role="alert" hidden></div>
 
@@ -332,7 +341,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
       <p class="rain-sum" id="rain-sum"></p>
       <dl class="facts" id="facts"></dl>
     </div>
-    <div class="panel">
+    <div class="panel chartpanel">
       <p class="label">Próximas 24 horas</p>
       <div class="chartwrap">
         <svg class="chart" id="hourly" viewBox="0 0 640 296" role="img" aria-label="Temperatura, probabilidade de chuva e rajadas de vento de duas em duas horas nas próximas 24 horas, com a mudança para o dia seguinte assinalada"></svg>
@@ -389,7 +398,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     VRL: ["Vila Real", 41.30, -7.74], VIS: ["Viseu", 40.66, -7.91]
   };
 
-  var state = { places: DEFAULT_PLACES.slice(), active: 0, units: "metric", layer: "rain", data: null, fetchedAt: null, warnings: null, warnError: false };
+  var state = { places: DEFAULT_PLACES.slice(), active: 0, picked: false, units: "metric", layer: "rain", data: null, fetchedAt: null, warnings: null, warnError: false };
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -500,19 +509,27 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     var box = $("places");
     box.textContent = "";
     state.places.forEach(function (p, i) {
-      var b = el("button", "chip", p.name);
+      var b = el("button", "chip");
       b.type = "button";
+      if (p.here) {
+        var pin = svgEl("svg", { viewBox: "0 0 16 16", "aria-hidden": "true" });
+        pin.appendChild(svgEl("path", { d: "M8 1a5 5 0 0 0-5 5c0 3.6 5 9 5 9s5-5.4 5-9a5 5 0 0 0-5-5zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4z", fill: "currentColor" }));
+        b.appendChild(pin);
+        b.title = "A tua localização";
+      }
+      b.appendChild(document.createTextNode(p.name));
       if (i === state.active) b.setAttribute("aria-current", "true");
-      b.addEventListener("click", function () { state.active = i; store("wl.active", i); state.data = null; clearView(); render(); fetchWeather(); });
+      b.addEventListener("click", function () { state.active = i; state.picked = true; state.data = null; clearView(); render(); fetchWeather(); });
       box.appendChild(b);
     });
-    if (state.places.length > 1) {
+    /* the place found by the device location can't be removed; saved places can */
+    if (state.places.length > 1 && !state.places[state.active].here) {
       var r = el("button", "remove", "Remover " + state.places[state.active].name);
       r.type = "button";
       r.addEventListener("click", function () {
         state.places.splice(state.active, 1);
         state.active = 0;
-        store("wl.places", state.places); store("wl.active", 0);
+        savePlaces();
         state.data = null; clearView(); render(); fetchWeather();
       });
       box.appendChild(r);
@@ -778,6 +795,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     });
   }
 
+  var lastBox = "";
   function renderHourly() {
     var h = state.data.hourly, now = state.data.current.time.slice(0, 13);
     var start = 0;
@@ -791,9 +809,12 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     if (temps.length < 2) return;
 
     /* the chart keeps room for a label every 2 hours; when the screen is narrower it scrolls sideways instead of dropping labels */
-    var avail = Math.round(svg.parentNode.clientWidth || 600);
-    var W = Math.max(avail, 540), H = 296, L = 62, R = 20, T = 34, B = 76;
+    var wrap = svg.parentNode;
+    var avail = Math.round(wrap.clientWidth || 600);
+    var W = Math.max(avail, 540), H = Math.max(296, Math.min(520, Math.round(wrap.clientHeight || 296))), L = 62, R = 20, T = 34, B = 76;
+    lastBox = wrap.clientWidth + "x" + wrap.clientHeight;
     svg.style.width = W > avail ? W + "px" : "100%";
+    svg.style.height = H + "px";
     $("chart-hint").hidden = !(W > avail);
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     var min = Math.floor(Math.min.apply(null, temps)) - 1;
@@ -1053,10 +1074,129 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     state.places.forEach(function (x, i) { if (Math.abs(x.lat - p.lat) < 0.01 && Math.abs(x.lon - p.lon) < 0.01) found = i; });
     if (found === -1) { state.places.push(p); found = state.places.length - 1; }
     state.active = found;
-    store("wl.places", state.places); store("wl.active", found);
+    state.picked = true;
+    savePlaces();
     $("q").value = "";
     hideResults();
     state.data = null; clearView(); render(); fetchWeather();
+  }
+
+  /* ---------- device location: the default place ---------- */
+  var GEO_NAME = "A minha localização";
+  var usingFallback = false; /* true while Montijo is only there because nothing else is known */
+  function savePlaces() { store("wl.places", state.places.filter(function (p) { return !p.here; })); }
+  function hereIndex() { for (var i = 0; i < state.places.length; i++) { if (state.places[i].here) return i; } return -1; }
+  function closeTo(a, b, d) { return Math.abs(a.lat - b.lat) < d && Math.abs(a.lon - b.lon) < d; }
+  function geoNote(msg) { var n = $("geo-note"); n.textContent = msg || ""; n.hidden = !msg; }
+
+  /* name of the town at these coordinates: OpenStreetMap first, BigDataCloud if that fails */
+  function reverseName(lat, lon) {
+    function viaOsm() {
+      return fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=pt-PT&lat=" + lat + "&lon=" + lon)
+        .then(function (r) { if (!r.ok) throw new Error("osm"); return r.json(); })
+        .then(function (j) {
+          var a = j.address || {};
+          var name = a.city || a.town || a.village || a.municipality || a.suburb || a.county;
+          if (!name) throw new Error("osm");
+          return { name: name, country: a.country || "", hints: [a.county, a.state_district, a.state, a.region, a.province] };
+        });
+    }
+    function viaBdc() {
+      return fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=pt&latitude=" + lat + "&longitude=" + lon)
+        .then(function (r) { if (!r.ok) throw new Error("bdc"); return r.json(); })
+        .then(function (j) {
+          var name = j.city || j.locality;
+          if (!name) throw new Error("bdc");
+          return { name: name, country: j.countryName || "", hints: [j.principalSubdivision] };
+        });
+    }
+    return viaOsm().catch(viaBdc);
+  }
+
+  /* IPMA district from any of the names a lookup returned, for example "Distrito de Setúbal" */
+  function districtFromHints(hints) {
+    var k, i, h;
+    for (i = 0; i < hints.length; i++) {
+      h = strip(hints[i]).replace(/^distrito (de |da |do )?/, "").trim();
+      if (!h) continue;
+      for (k in AREAS) { if (strip(AREAS[k][0]) === h) return k; }
+    }
+    return null;
+  }
+  /* second chance: the weather service's own place search knows the district of a town */
+  function districtViaSearch(name, lat, lon) {
+    return fetch("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(name) + "&count=10&language=pt&format=json")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var best = null, bd = 0.3;
+        (d.results || []).forEach(function (r) {
+          var dd = Math.max(Math.abs(r.latitude - lat), Math.abs(r.longitude - lon));
+          if (dd < bd) { bd = dd; best = r; }
+        });
+        return best ? districtFromHints([best.admin1, best.admin2]) : null;
+      });
+  }
+
+  function resolvePlace(lat, lon) {
+    var cached = load("wl.here", null);
+    if (cached && typeof cached.lat === "number" && closeTo(cached, { lat: lat, lon: lon }, 0.05)) {
+      return Promise.resolve({ name: cached.name, country: cached.country || "", admin1: cached.admin1 || "", area: cached.area, lat: lat, lon: lon });
+    }
+    return reverseName(lat, lon)
+      .catch(function () { return { name: GEO_NAME, country: "", hints: [] }; })
+      .then(function (r) {
+        var place = { name: r.name, country: r.country, admin1: "", lat: lat, lon: lon };
+        var code = districtFromHints(r.hints);
+        if (code) { place.area = code; place.admin1 = AREAS[code][0]; return place; }
+        var portugal = !r.country || strip(r.country) === "portugal";
+        if (!portugal || r.name === GEO_NAME) return place;
+        return districtViaSearch(r.name, lat, lon).then(function (c) {
+          if (c) { place.area = c; place.admin1 = AREAS[c][0]; }
+          return place;
+        }, function () { return place; });
+      });
+  }
+
+  /* put the found place first and, unless the person already picked another one, show it */
+  function applyHere(p) {
+    if (usingFallback && !state.picked) { state.places = []; state.active = 0; }
+    usingFallback = false;
+    var i = hereIndex(), old = i >= 0 ? state.places[i] : null;
+    var prev = state.places[state.active];
+    var prevWasHere = !!(prev && prev.here);
+    var sameSpot = !!(old && closeTo(old, p, 0.05));
+    p.here = true;
+    store("wl.here", p);
+    if (i >= 0) { state.places[i] = p; if (!state.picked) state.active = 0; }
+    else { state.places.unshift(p); state.active = state.picked ? state.active + 1 : 0; }
+    var needFetch = state.places[state.active] === p && (!sameSpot || !prevWasHere);
+    if (needFetch) { state.data = null; clearView(); render(); fetchWeather(); }
+    else render();
+  }
+
+  var locating = false;
+  function locate(fromButton) {
+    if (!navigator.geolocation) { if (fromButton) geoNote("Este navegador não permite obter a localização."); return; }
+    if (locating) return;
+    locating = true;
+    if (fromButton) { state.picked = false; geoNote("A obter a tua localização..."); }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      store("wl.geo", "granted");
+      geoNote("");
+      resolvePlace(pos.coords.latitude, pos.coords.longitude).then(function (p) { locating = false; applyHere(p); }, function () { locating = false; });
+    }, function (err) {
+      locating = false;
+      if (err && err.code === 1) {
+        store("wl.geo", "denied");
+        geoNote("A localização está bloqueada para este site. Ativa-a nas definições do navegador e volta a tentar.");
+      } else if (fromButton) {
+        geoNote("Não foi possível obter a localização agora. Tenta outra vez.");
+      }
+    }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 600000 });
+  }
+  if (navigator.geolocation) {
+    $("use-location").hidden = false;
+    $("use-location").addEventListener("click", function () { locate(true); });
   }
 
   /* ---------- units + refresh ---------- */
@@ -1067,12 +1207,17 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
   }
   $("refresh").addEventListener("click", fetchWeather);
 
-  /* redraw the chart when the width changes (rotating a phone, resizing a window) */
+  /* redraw the chart whenever its box changes size (rotating a phone, resizing a window, the card beside it growing) */
   var resizeTimer = null;
-  window.addEventListener("resize", function () {
+  function redrawChart() {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { if (state.data) renderHourly(); }, 150);
-  });
+    resizeTimer = setTimeout(function () {
+      var w = $("hourly").parentNode;
+      if (state.data && (w.clientWidth + "x" + w.clientHeight) !== lastBox) renderHourly();
+    }, 120);
+  }
+  window.addEventListener("resize", redrawChart);
+  if (window.ResizeObserver) new ResizeObserver(redrawChart).observe($("hourly").parentNode);
 
   /* touch screens: the map ignores touches until tapped, so the page can still be scrolled */
   var mapUnlocked = false;
@@ -1088,19 +1233,29 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
   setInterval(function () { if (!document.hidden) fetchWeather(); }, REFRESH_MS);
 
   /* ---------- start ---------- */
+  /* saved places, then the last known device location in front of them; Montijo only when there is nothing else */
   var savedPlaces = load("wl.places", null);
-  if (Array.isArray(savedPlaces) && savedPlaces.length) state.places = savedPlaces;
+  state.places = (Array.isArray(savedPlaces) ? savedPlaces : []).filter(function (p) {
+    return p && typeof p.lat === "number" && typeof p.lon === "number" && !p.here;
+  });
+  var cachedHere = load("wl.here", null);
+  if (cachedHere && typeof cachedHere.lat === "number" && typeof cachedHere.lon === "number") {
+    cachedHere.here = true;
+    state.places.unshift(cachedHere);
+  }
+  if (!state.places.length) { state.places = DEFAULT_PLACES.slice(); usingFallback = true; }
   /* a Montijo saved by an earlier version has no district yet */
   state.places.forEach(function (p) {
     if (!p.area && Math.abs(p.lat - 38.7066) < 0.02 && Math.abs(p.lon + 8.9733) < 0.02) p.area = "STB";
   });
-  var savedActive = load("wl.active", 0);
-  state.active = (typeof savedActive === "number" && savedActive < state.places.length) ? savedActive : 0;
+  state.active = 0;
   setUnits("metric");
   buildSky();
   renderPlaces();
   updateMap();
   fetchWeather();
+  /* then ask the device where it is (not again if it was refused before; the button still works) */
+  if (load("wl.geo", null) !== "denied") locate(false);
 
   /* installable app: only when served from a web address, never when opened as a local file */
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
