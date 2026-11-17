@@ -1,0 +1,16 @@
+{
+  "name": "Como vai estar o tempo?",
+  "short_name": "Tempo",
+  "description": "Previsão do tempo, mapa de chuva e vento e avisos do IPMA.",
+  "lang": "pt-PT",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#4fb4ff",
+  "theme_color": "#3f8fd8",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
