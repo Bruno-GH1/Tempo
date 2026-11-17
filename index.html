@@ -136,7 +136,7 @@ h1 { color: var(--onsky); font-family: var(--font-display); font-weight: 700; fo
 /* panels */
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; min-width: 0; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .label { font-family: var(--font-data); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
-.top { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; }
+.top { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 5fr); gap: 16px; }
 @media (max-width: 760px) { .top { grid-template-columns: minmax(0, 1fr); } }
 
 .now-temp { font-family: var(--font-display); font-weight: 700; font-size: 4.2rem; line-height: 1; letter-spacing: -0.03em; }
@@ -153,7 +153,12 @@ h1 { color: var(--onsky); font-family: var(--font-display); font-weight: 700; fo
 
 .chartwrap { overflow-x: auto; }
 .chart { width: 100%; height: auto; display: block; }
-.chart .temp-label { font-family: var(--font-display); font-size: 10.5px; font-weight: 700; fill: var(--ink); }
+.chart .temp-label { font-family: var(--font-display); font-size: 10.5px; font-weight: 700; fill: var(--ink); paint-order: stroke; stroke: var(--panel-solid); stroke-width: 3px; stroke-linejoin: round; }
+.chart .daytint { fill: var(--ink); opacity: 0.055; }
+.chart .divider { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.chart .daychip { fill: var(--accent); }
+.chart .daychip-text { font-family: var(--font-data); font-size: 9.5px; letter-spacing: 0.06em; font-weight: 500; fill: var(--panel-solid); }
+.chart-hint { margin: 6px 0 0; color: var(--muted); font-size: 0.78rem; }
 .chart .rain-label { font-family: var(--font-data); font-size: 10px; fill: var(--rain); }
 .chart .rain-label.zero { opacity: 0.45; }
 .chart .row-label { font-family: var(--font-data); font-size: 9px; fill: var(--muted); }
@@ -330,8 +335,9 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     <div class="panel">
       <p class="label">Próximas 24 horas</p>
       <div class="chartwrap">
-        <svg class="chart" id="hourly" viewBox="0 0 640 280" role="img" aria-label="Temperatura, probabilidade de chuva e rajadas de vento por hora nas próximas 24 horas"></svg>
+        <svg class="chart" id="hourly" viewBox="0 0 640 296" role="img" aria-label="Temperatura, probabilidade de chuva e rajadas de vento de duas em duas horas nas próximas 24 horas, com a mudança para o dia seguinte assinalada"></svg>
       </div>
+      <p class="chart-hint" id="chart-hint" hidden>Desliza para o lado para ver as horas seguintes →</p>
     </div>
   </section>
 
@@ -784,7 +790,11 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     svg.textContent = "";
     if (temps.length < 2) return;
 
-    var W = Math.max(280, Math.round(svg.parentNode.clientWidth || 600)), H = 288, L = 62, R = 20, T = 24, B = 76;
+    /* the chart keeps room for a label every 2 hours; when the screen is narrower it scrolls sideways instead of dropping labels */
+    var avail = Math.round(svg.parentNode.clientWidth || 600);
+    var W = Math.max(avail, 540), H = 296, L = 62, R = 20, T = 34, B = 76;
+    svg.style.width = W > avail ? W + "px" : "100%";
+    $("chart-hint").hidden = !(W > avail);
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     var min = Math.floor(Math.min.apply(null, temps)) - 1;
     var max = Math.ceil(Math.max.apply(null, temps)) + 1;
@@ -802,6 +812,23 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
       svg.appendChild(gt);
     }
 
+    /* where the next day starts: a tinted area from midnight onwards, a dashed line and a labelled tag */
+    var mid = -1;
+    for (var mi = 1; mi < times.length; mi++) { if (times[mi].slice(11, 13) === "00") { mid = mi; break; } }
+    if (mid > 0) {
+      var mx = x(mid);
+      var dd = new Date(times[mid].slice(0, 10) + "T12:00:00");
+      var chipText = "AMANHÃ · " + ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"][dd.getDay()] + " " + dd.getDate();
+      if (mx < W - 1) svg.appendChild(svgEl("rect", { "class": "daytint", x: mx, y: 0, width: W - mx, height: H }));
+      svg.appendChild(svgEl("line", { "class": "divider", x1: mx, x2: mx, y1: 22, y2: T + plotH + 6 }));
+      var cw = Math.round(chipText.length * 6.2 + 18);
+      var cx = Math.max(2, Math.min(mx - 1, W - cw - 2));
+      svg.appendChild(svgEl("rect", { "class": "daychip", x: cx, y: 4, width: cw, height: 18, rx: 9 }));
+      var ct = svgEl("text", { "class": "daychip-text", x: cx + cw / 2, y: 16, "text-anchor": "middle" });
+      ct.textContent = chipText;
+      svg.appendChild(ct);
+    }
+
     var pts = temps.map(function (v, i) { return x(i).toFixed(1) + "," + y(v).toFixed(1); });
     svg.appendChild(svgEl("polygon", { "class": "area", points: pts.join(" ") + " " + x(temps.length - 1) + "," + (T + plotH) + " " + x(0) + "," + (T + plotH) }));
     svg.appendChild(svgEl("polyline", { "class": "line", points: pts.join(" ") }));
@@ -815,9 +842,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     var wl = svgEl("text", { "class": "row-label", x: 2, y: rowWind, "text-anchor": "start" });
     wl.textContent = "rajadas";
     svg.appendChild(wl);
-    /* label spacing follows the width: every 2 hours on wide screens, every 3 to 6 on phones */
-    var perHour = plotW / (temps.length - 1);
-    var every = [1, 2, 3, 4, 6, 8].filter(function (n) { return n * perHour >= 46; })[0] || 8;
+    var every = 2;
     times.forEach(function (t, i) {
       if (i % every !== 0) return;
       var tt = svgEl("text", { "class": "temp-label", x: x(i), y: y(temps[i]) - 9, "text-anchor": "middle" });
