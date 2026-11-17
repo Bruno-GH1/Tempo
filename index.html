@@ -158,18 +158,18 @@ h1 { color: var(--onsky); font-family: var(--font-display); font-weight: 700; fo
 .chartpanel { display: flex; flex-direction: column; }
 .chartwrap { position: relative; flex: 1 1 auto; min-height: 296px; overflow-x: auto; overflow-y: hidden; }
 .chart { position: absolute; top: 0; left: 0; width: 100%; height: 296px; display: block; }
-.chart .temp-label { font-family: var(--font-display); font-size: 10.5px; font-weight: 700; fill: var(--ink); paint-order: stroke; stroke: var(--panel-solid); stroke-width: 3px; stroke-linejoin: round; }
+.chart .temp-label { font-family: var(--font-display); font-size: 12.5px; font-weight: 700; fill: var(--ink); paint-order: stroke; stroke: var(--panel-solid); stroke-width: 3px; stroke-linejoin: round; }
 .chart .daytint { fill: var(--ink); opacity: 0.055; }
 .chart .divider { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
 .chart .daychip { fill: var(--accent); }
-.chart .daychip-text { font-family: var(--font-data); font-size: 9.5px; letter-spacing: 0.06em; font-weight: 500; fill: var(--panel-solid); }
+.chart .daychip-text { font-family: var(--font-data); font-size: 10.5px; letter-spacing: 0.06em; font-weight: 500; fill: var(--panel-solid); }
 .chart-hint { margin: 6px 0 0; color: var(--muted); font-size: 0.78rem; }
-.chart .rain-label { font-family: var(--font-data); font-size: 10px; fill: var(--rain); }
+.chart .rain-label { font-family: var(--font-data); font-size: 12.5px; font-weight: 600; fill: var(--rain); }
 .chart .rain-label.zero { opacity: 0.45; }
-.chart .row-label { font-family: var(--font-data); font-size: 9px; fill: var(--muted); }
-.chart .wind-label { font-family: var(--font-data); font-size: 9px; fill: var(--ink); }
-.chart text { font-family: var(--font-data); font-size: 10px; fill: var(--muted); }
-.chart .time-label { font-family: var(--font-display); font-size: 11px; font-weight: 700; fill: var(--ink); }
+.chart .row-label { font-family: var(--font-data); font-size: 11px; fill: var(--muted); }
+.chart .wind-label { font-family: var(--font-data); font-size: 11.5px; fill: var(--ink); }
+.chart text { font-family: var(--font-data); font-size: 11.5px; fill: var(--muted); }
+.chart .time-label { font-family: var(--font-display); font-size: 13.5px; font-weight: 700; fill: var(--ink); }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .line { fill: none; stroke: var(--warm); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .chart .area { fill: var(--warm); opacity: 0.12; }
@@ -811,7 +811,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     /* the chart keeps room for a label every 2 hours; when the screen is narrower it scrolls sideways instead of dropping labels */
     var wrap = svg.parentNode;
     var avail = Math.round(wrap.clientWidth || 600);
-    var W = Math.max(avail, 540), H = Math.max(296, Math.min(520, Math.round(wrap.clientHeight || 296))), L = 62, R = 20, T = 34, B = 76;
+    var W = Math.max(avail, 720), H = Math.max(296, Math.min(520, Math.round(wrap.clientHeight || 296))), L = 74, R = 24, T = 34, B = 88;
     lastBox = wrap.clientWidth + "x" + wrap.clientHeight;
     svg.style.width = W > avail ? W + "px" : "100%";
     svg.style.height = H + "px";
@@ -842,7 +842,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
       var chipText = "AMANHÃ · " + ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"][dd.getDay()] + " " + dd.getDate();
       if (mx < W - 1) svg.appendChild(svgEl("rect", { "class": "daytint", x: mx, y: 0, width: W - mx, height: H }));
       svg.appendChild(svgEl("line", { "class": "divider", x1: mx, x2: mx, y1: 22, y2: T + plotH + 6 }));
-      var cw = Math.round(chipText.length * 6.2 + 18);
+      var cw = Math.round(chipText.length * 6.8 + 18);
       var cx = Math.max(2, Math.min(mx - 1, W - cw - 2));
       svg.appendChild(svgEl("rect", { "class": "daychip", x: cx, y: 4, width: cw, height: 18, rx: 9 }));
       var ct = svgEl("text", { "class": "daychip-text", x: cx + cw / 2, y: 16, "text-anchor": "middle" });
@@ -856,7 +856,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     svg.appendChild(svgEl("circle", { "class": "dot", cx: x(0), cy: y(temps[0]), r: 5 }));
 
     /* every 2 hours: temperature above the line, time and rain chance in two rows underneath */
-    var rowTime = H - 48, rowRain = H - 30, rowWind = H - 12;
+    var rowTime = H - 58, rowRain = H - 35, rowWind = H - 12;
     var rl = svgEl("text", { "class": "row-label", x: 2, y: rowRain, "text-anchor": "start" });
     rl.textContent = "chuva";
     svg.appendChild(rl);
