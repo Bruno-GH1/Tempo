@@ -1,6 +1,6 @@
 /* Keeps the app's own files so it opens instantly and, offline, still opens (without fresh data).
    Weather, map, fonts and warnings come from other addresses and always go straight to the network. */
-var CACHE = "tempo-v4";
+var CACHE = "tempo-v5";
 var SHELL = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", function (e) {

@@ -156,8 +156,10 @@ h1 { color: var(--onsky); font-family: var(--font-display); font-weight: 700; fo
 
 /* the chart panel is as tall as the "Agora" card beside it; the chart is drawn at exactly the height that is left */
 .chartpanel { display: flex; flex-direction: column; }
-.chartwrap { position: relative; flex: 1 1 auto; min-height: 296px; overflow-x: auto; overflow-y: hidden; }
-.chart { position: absolute; top: 0; left: 0; width: 100%; height: 296px; display: block; }
+.chartwrap { position: relative; flex: 1 1 auto; min-height: 340px; overflow-x: auto; overflow-y: hidden; }
+.chart { position: absolute; top: 0; left: 0; width: 100%; height: 340px; display: block; }
+.chart .nightband { fill: rgba(40, 55, 110, 0.10); }
+.chart .skyicon { pointer-events: all; }
 .chart .temp-label { font-family: var(--font-display); font-size: 12.5px; font-weight: 700; fill: var(--ink); paint-order: stroke; stroke: var(--panel-solid); stroke-width: 3px; stroke-linejoin: round; }
 .chart .daytint { fill: var(--ink); opacity: 0.055; }
 .chart .divider { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
@@ -344,7 +346,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     <div class="panel chartpanel">
       <p class="label">Próximas 24 horas</p>
       <div class="chartwrap">
-        <svg class="chart" id="hourly" viewBox="0 0 640 296" role="img" aria-label="Temperatura, probabilidade de chuva e rajadas de vento de duas em duas horas nas próximas 24 horas, com a mudança para o dia seguinte assinalada"></svg>
+        <svg class="chart" id="hourly" viewBox="0 0 640 340" role="img" aria-label="Temperatura, céu (sol, nuvens, chuva), probabilidade de chuva e rajadas de vento de duas em duas horas nas próximas 24 horas, com a mudança para o dia seguinte assinalada"></svg>
       </div>
       <p class="chart-hint" id="chart-hint" hidden>Desliza para o lado para ver as horas seguintes →</p>
     </div>
@@ -428,7 +430,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     return "https://api.open-meteo.com/v1/forecast" +
       "?latitude=" + p.lat + "&longitude=" + p.lon +
       "&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day" +
-      "&hourly=temperature_2m,precipitation_probability,precipitation,wind_gusts_10m" +
+      "&hourly=temperature_2m,precipitation_probability,precipitation,wind_gusts_10m,weather_code,is_day" +
       "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,sunrise,sunset" +
       "&past_days=1&forecast_days=8&timezone=auto" +
       "&temperature_unit=" + (imp ? "fahrenheit" : "celsius") +
@@ -454,14 +456,14 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
       .catch(function (e) {
         if (id !== reqId) return;
         var offline = (typeof navigator !== "undefined" && navigator.onLine === false);
-        showError(offline ? 'Parece que não tens ligação à Internet. Volta a ligar-te e prime "E agora?".' : (e && e.message ? e.message : "Não foi possível carregar a meteorologia.") + ' Prime "E agora?" para tentar novamente.');
+        showError(offline ? 'Parece que não tens ligação à Internet. Volta a ligar-te e prime "E agora?".' : "Não foi possível carregar a meteorologia." + ' Prime "E agora?" para tentar novamente.');
         $("updated").textContent = state.fetchedAt ? "Última atualização às " + timeLabel(state.fetchedAt) + " (dados desatualizados)" : "Não carregado";
       });
   }
 
   function showError(msg) { var e = $("error"); e.textContent = msg; e.hidden = false; }
   function hideError() { $("error").hidden = true; }
-  function timeLabel(d) { return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  function timeLabel(d) { return d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }); }
 
   /* ---------- render ---------- */
   /* ---------- live map (Windy embed) ---------- */
@@ -795,6 +797,31 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     });
   }
 
+  /* small weather pictures for the hourly chart: sun, moon, clouds, rain, snow, storm, fog */
+  var CLOUD = '<path d="M7 19h11a4 4 0 0 0 .6-7.95A5.6 5.6 0 0 0 7.9 10.2 4.4 4.4 0 0 0 7 19z" fill="#dfe6ee" stroke="#7f8da0" stroke-width="1.4" stroke-linejoin="round"/>';
+  var SUN = '<g stroke="#f5a623" stroke-width="1.8" stroke-linecap="round"><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></g><circle cx="12" cy="12" r="5" fill="#ffc83d" stroke="#f5a623" stroke-width="1.4"/>';
+  var MOON = '<path d="M15.5 3.5a8.5 8.5 0 1 0 5 14.6 7.2 7.2 0 0 1-5-14.6z" fill="#f3e3a0" stroke="#bda24e" stroke-width="1.4" stroke-linejoin="round"/>';
+  function skyKind(code) {
+    if (code === 0) return "clear";
+    if (code === 1 || code === 2) return "partly";
+    if (code === 3) return "cloud";
+    if (code === 45 || code === 48) return "fog";
+    if (code >= 95) return "storm";
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "snow";
+    return "rain";
+  }
+  function skyIconSvg(code, isDay) {
+    var body = isDay ? SUN : MOON, k = skyKind(code);
+    if (k === "clear") return body;
+    if (k === "partly") return '<g transform="translate(-3 -3) scale(.78)">' + body + "</g>" + '<g transform="translate(1.5 2.5)">' + CLOUD + "</g>";
+    var extra = "";
+    if (k === "fog") extra = '<g stroke="#7f8da0" stroke-width="1.6" stroke-linecap="round"><path d="M5 21h14M8 23.5h9"/></g>';
+    if (k === "rain") extra = '<g stroke="#2f7fd1" stroke-width="1.8" stroke-linecap="round"><path d="M8.5 21l-1 2.5M12.5 21l-1 2.5M16.5 21l-1 2.5"/></g>';
+    if (k === "snow") extra = '<g fill="#8ab4e6"><circle cx="8.5" cy="22" r="1.3"/><circle cx="12.5" cy="23" r="1.3"/><circle cx="16.5" cy="22" r="1.3"/></g>';
+    if (k === "storm") extra = '<path d="M13 19.5l-3 4h2.6l-1 3 4-4.8h-2.7z" fill="#f5b800" stroke="#c98a00" stroke-width=".8" stroke-linejoin="round"/>';
+    return '<g transform="translate(0 -3)">' + CLOUD + extra + "</g>";
+  }
+
   var lastBox = "";
   function renderHourly() {
     var h = state.data.hourly, now = state.data.current.time.slice(0, 13);
@@ -804,6 +831,8 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     var temps = h.temperature_2m.slice(start, start + 25);
     var probs = h.precipitation_probability.slice(start, start + 25);
     var gusts = h.wind_gusts_10m.slice(start, start + 25);
+    var codes = (h.weather_code || []).slice(start, start + 25);
+    var days = (h.is_day || []).slice(start, start + 25);
     var svg = $("hourly");
     svg.textContent = "";
     if (temps.length < 2) return;
@@ -811,7 +840,7 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
     /* the chart keeps room for a label every 2 hours; when the screen is narrower it scrolls sideways instead of dropping labels */
     var wrap = svg.parentNode;
     var avail = Math.round(wrap.clientWidth || 600);
-    var W = Math.max(avail, 720), H = Math.max(296, Math.min(520, Math.round(wrap.clientHeight || 296))), L = 74, R = 24, T = 34, B = 88;
+    var W = Math.max(avail, 720), H = Math.max(340, Math.min(540, Math.round(wrap.clientHeight || 340))), L = 74, R = 24, T = 34, B = 120;
     lastBox = wrap.clientWidth + "x" + wrap.clientHeight;
     svg.style.width = W > avail ? W + "px" : "100%";
     svg.style.height = H + "px";
@@ -850,22 +879,44 @@ body[data-sky="fog"] .cloud:nth-child(n+3) { display: none; }
       svg.appendChild(ct);
     }
 
+    /* night hours get a soft blue shade behind the line, so day and night read at a glance */
+    if (days.length === temps.length) {
+      var ns = -1;
+      for (var ni = 0; ni <= temps.length; ni++) {
+        var isNight = ni < temps.length && days[ni] === 0;
+        if (isNight && ns < 0) ns = ni;
+        if (!isNight && ns >= 0) {
+          var bx1 = ns === 0 ? L : x(ns - 0.5), bx2 = ni >= temps.length ? W - R : x(ni - 0.5);
+          svg.appendChild(svgEl("rect", { "class": "nightband", x: bx1, y: T - 6, width: Math.max(0, bx2 - bx1), height: plotH + 12 }));
+          ns = -1;
+        }
+      }
+    }
+
     var pts = temps.map(function (v, i) { return x(i).toFixed(1) + "," + y(v).toFixed(1); });
     svg.appendChild(svgEl("polygon", { "class": "area", points: pts.join(" ") + " " + x(temps.length - 1) + "," + (T + plotH) + " " + x(0) + "," + (T + plotH) }));
     svg.appendChild(svgEl("polyline", { "class": "line", points: pts.join(" ") }));
     svg.appendChild(svgEl("circle", { "class": "dot", cx: x(0), cy: y(temps[0]), r: 5 }));
 
     /* every 2 hours: temperature above the line, time and rain chance in two rows underneath */
-    var rowTime = H - 58, rowRain = H - 35, rowWind = H - 12;
+    var rowIcon = H - 96, rowTime = H - 58, rowRain = H - 35, rowWind = H - 12;
     var rl = svgEl("text", { "class": "row-label", x: 2, y: rowRain, "text-anchor": "start" });
     rl.textContent = "chuva";
     svg.appendChild(rl);
     var wl = svgEl("text", { "class": "row-label", x: 2, y: rowWind, "text-anchor": "start" });
     wl.textContent = "rajadas";
     svg.appendChild(wl);
+    var cl = svgEl("text", { "class": "row-label", x: 2, y: rowIcon + 4, "text-anchor": "start" });
+    cl.textContent = "céu";
+    svg.appendChild(cl);
     var every = 2;
     times.forEach(function (t, i) {
       if (i % every !== 0) return;
+      if (codes[i] != null) {
+        var ig = svgEl("g", { "class": "skyicon", transform: "translate(" + (x(i) - 14) + " " + (rowIcon - 14) + ") scale(1.17)" });
+        ig.innerHTML = "<title>" + cond(codes[i]) + "</title>" + skyIconSvg(codes[i], days[i] !== 0);
+        svg.appendChild(ig);
+      }
       var tt = svgEl("text", { "class": "temp-label", x: x(i), y: y(temps[i]) - 9, "text-anchor": "middle" });
       tt.textContent = round(temps[i]) + "°";
       svg.appendChild(tt);
